@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit Task' if edit else 'Add Task' }} - Team Task Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-8">
+    <div class="mb-8">
+        <a href="{{ url_for('project_detail', project_id=project.id) }}" class="inline-flex items-center text-sm text-gray-400 hover:text-white transition-colors mb-4">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
+            Back to Project
+        </a>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+            <i data-lucide="{{ 'edit-3' if edit else 'plus-square' }}" class="w-8 h-8 text-emerald-500"></i>
+            {{ 'Edit Task in' if edit else 'Add Task to' }} <span class="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">{{ project.name }}</span>
+        </h1>
+        <p class="mt-2 text-gray-400">{{ 'Update the task details below.' if edit else 'Create a new task for your team to work on.' }}</p>
+    </div>
+
+    <div class="glass-card p-6 md:p-8 rounded-2xl border border-white/10 relative overflow-hidden">
+        <!-- Glow effect -->
+        <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+        
+        <form method="post" action="{{ url_for('edit_task', task_id=task.id) if edit else url_for('create_task', project_id=project.id) }}" id="task-form" class="space-y-6">
+            <div class="space-y-2">
+                <label for="title" class="block text-sm font-medium text-gray-300">
+                    Task Title <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-lucide="check-square" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <input id="title" name="title" type="text" placeholder="What needs to be done?" required value="{{ task.title if task else '' }}" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all sm:text-sm">
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <label for="description" class="block text-sm font-medium text-gray-300">
+                    Description
+                </label>
+                <div class="relative">
+                    <div class="absolute top-3 left-3 flex items-start pointer-events-none">
+                        <i data-lucide="align-left" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <textarea id="description" name="description" placeholder="Add details about the task, requirements, or context..." rows="4" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all sm:text-sm resize-none">{{ task.description if task else '' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label for="status" class="block text-sm font-medium text-gray-300">Status</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="activity" class="w-5 h-5 text-gray-500"></i>
+                        </div>
+                        <select id="status" name="status" class="glow-input block w-full pl-10 pr-10 py-3 rounded-xl border border-white/10 bg-dark-900 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all sm:text-sm appearance-none">
+                            {% for option in ['To Do', 'In Progress', 'Review', 'Help Needed', 'Done'] %}
+                                <option value="{{ option }}" {% if task and task.status == option %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <label for="priority" class="block text-sm font-medium text-gray-300">Priority</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-gray-500"></i>
+                        </div>
+                        <select id="priority" name="priority" class="glow-input block w-full pl-10 pr-10 py-3 rounded-xl border border-white/10 bg-dark-900 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all sm:text-sm appearance-none">
+                            <option value="Low" {% if task and task.priority == 'Low' %}selected{% endif %}>Low Priority</option>
+                            <option value="Medium" {% if task and task.priority == 'Medium' %}selected{% endif %}>Medium Priority</option>
+                            <option value="High" {% if task and task.priority == 'High' %}selected{% endif %}>High Priority</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <label for="due_date" class="block text-sm font-medium text-gray-300">Due Date</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-lucide="calendar" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <input id="due_date" type="date" name="due_date" value="{{ task.due_date.isoformat() if task and task.due_date else '' }}" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all sm:text-sm [color-scheme:dark]">
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <label for="search_member" class="block text-sm font-medium text-gray-300 flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i> Assign Team Members
+                </label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-lucide="search" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <input id="search_member" type="text" placeholder="Type member name to search..." autocomplete="off" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all sm:text-sm">
+                    
+                    <div id="suggestions" class="absolute top-full left-0 right-0 mt-1 bg-dark-800 border border-white/10 rounded-xl overflow-hidden hidden z-20 shadow-2xl">
+                        <!-- Suggestions will be injected here -->
+                    </div>
+                </div>
+                
+                <div id="assigned-members" class="mt-4 flex flex-wrap gap-2">
+                    {% if task and task.assignees %}
+                        {% for assignee in task.assignees %}
+                            <div class="assigned-badge inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500/20 border border-brand-500/30 text-brand-300 text-sm font-medium transition-all" data-username="{{ assignee.user.username }}">
+                                <div class="w-5 h-5 rounded-full bg-dark-900 flex items-center justify-center text-[10px] text-white border border-white/10">{{ assignee.user.username[0] | upper }}</div>
+                                {{ assignee.user.username }}
+                                <button type="button" class="remove-badge ml-1 text-brand-400 hover:text-brand-200 focus:outline-none" data-username="{{ assignee.user.username }}">
+                                    <i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i>
+                                </button>
+                                <input type="hidden" name="assigned_to" value="{{ assignee.user.username }}">
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="pt-6 border-t border-white/10 flex flex-col sm:flex-row gap-4">
+                <button type="submit" class="w-full sm:w-1/2 flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 focus:ring-emerald-500 transition-all duration-200">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    {{ 'Update Task' if edit else 'Create Task' }}
+                </button>
+                <a href="{{ url_for('project_detail', project_id=project.id) }}" class="w-full sm:w-1/2 flex justify-center py-3 px-4 border border-white/10 rounded-xl text-sm font-medium text-gray-300 bg-white/5 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 focus:ring-gray-500 transition-all duration-200">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const projectId = {{ project.id }};
+const searchInput = document.getElementById('search_member');
+const suggestionsDiv = document.getElementById('suggestions');
+const assignedMembersDiv = document.getElementById('assigned-members');
+
+searchInput.addEventListener('input', async (e) => {
+    const query = e.target.value.trim();
+    
+    if (query.length === 0) {
+        suggestionsDiv.classList.add('hidden');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/project/${projectId}/search-members?q=${encodeURIComponent(query)}`);
+        const members = await response.json();
+        
+        // Get already assigned members
+        const assignedUsernames = Array.from(document.querySelectorAll('.assigned-badge')).map(el => el.dataset.username);
+        
+        // Filter out already assigned members
+        const available = members.filter(m => !assignedUsernames.includes(m.username));
+        
+        if (available.length === 0) {
+            suggestionsDiv.classList.add('hidden');
+            return;
+        }
+        
+        suggestionsDiv.innerHTML = available.map(member => `
+            <div class="suggestion-item px-4 py-3 cursor-pointer border-b border-white/5 hover:bg-white/5 transition-colors text-gray-300 flex items-center gap-2" data-username="${member.username}">
+                <div class="w-6 h-6 rounded-full bg-dark-900 flex items-center justify-center text-[10px] text-white border border-white/10 font-bold">${member.username[0].toUpperCase()}</div>
+                ${member.username}
+            </div>
+        `).join('');
+        
+        suggestionsDiv.classList.remove('hidden');
+        
+        // Add click handlers
+        document.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const username = item.dataset.username;
+                addMember(username);
+                searchInput.value = '';
+                suggestionsDiv.classList.add('hidden');
+            });
+        });
+    } catch (error) {
+        console.error('Error searching members:', error);
+    }
+});
+
+// Close suggestions when clicking outside
+document.addEventListener('click', (e) => {
+    if (e.target !== searchInput && !suggestionsDiv.contains(e.target)) {
+        suggestionsDiv.classList.add('hidden');
+    }
+});
+
+function addMember(username) {
+    const badge = document.createElement('div');
+    badge.className = 'assigned-badge inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500/20 border border-brand-500/30 text-brand-300 text-sm font-medium transition-all';
+    badge.dataset.username = username;
+    
+    const initial = username[0].toUpperCase();
+    
+    badge.innerHTML = `
+        <div class="w-5 h-5 rounded-full bg-dark-900 flex items-center justify-center text-[10px] text-white border border-white/10">${initial}</div>
+        ${username}
+        <button type="button" class="remove-badge ml-1 text-brand-400 hover:text-brand-200 focus:outline-none" data-username="${username}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <input type="hidden" name="assigned_to" value="${username}">
+    `;
+    
+    assignedMembersDiv.appendChild(badge);
+    
+    // We need to reinitialize Lucide icons if we added any, but here we used inline SVG for simplicity in dynamic content
+}
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.remove-badge')) {
+        e.preventDefault();
+        e.target.closest('.assigned-badge').remove();
+    }
+});
+</script>
+{% endblock %}

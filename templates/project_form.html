@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'Edit Project' if edit else 'Create Project' }} - Team Task Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-8">
+    <div class="mb-8">
+        <a href="{{ url_for('dashboard') if not edit else url_for('project_detail', project_id=project.id) }}" class="inline-flex items-center text-sm text-gray-400 hover:text-white transition-colors mb-4">
+            <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
+            Back
+        </a>
+        <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+            <i data-lucide="{{ 'edit-3' if edit else 'folder-plus' }}" class="w-8 h-8 text-brand-500"></i>
+            {{ 'Edit Project' if edit else 'Create a New Project' }}
+        </h1>
+        <p class="mt-2 text-gray-400">{{ 'Update your project details below.' if edit else 'Set up a new project to organize your team\'s work.' }}</p>
+    </div>
+
+    <div class="glass-card p-6 md:p-8 rounded-2xl border border-white/10 relative overflow-hidden">
+        <!-- Glow effect -->
+        <div class="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+        
+        <form method="post" class="space-y-6">
+            <div class="space-y-2">
+                <label for="name" class="block text-sm font-medium text-gray-300">
+                    Project Name <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-lucide="type" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <input id="name" name="name" type="text" placeholder="e.g., Q3 Marketing Campaign" required value="{{ project.name if project else '' }}" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all sm:text-sm">
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <label for="description" class="block text-sm font-medium text-gray-300">
+                    Description
+                </label>
+                <div class="relative">
+                    <div class="absolute top-3 left-3 flex items-start pointer-events-none">
+                        <i data-lucide="align-left" class="w-5 h-5 text-gray-500"></i>
+                    </div>
+                    <textarea id="description" name="description" placeholder="Add optional details about your project goals and scope..." rows="4" class="glow-input block w-full pl-10 pr-3 py-3 rounded-xl border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all sm:text-sm resize-none">{{ project.description if project else '' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="pt-4 border-t border-white/10 flex flex-col sm:flex-row gap-4">
+                <button type="submit" class="w-full sm:w-1/2 flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.2)] text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 focus:ring-brand-500 transition-all duration-200">
+                    {{ 'Update Project' if edit else 'Create Project' }}
+                </button>
+                <a href="{{ url_for('dashboard') if not edit else url_for('project_detail', project_id=project.id) }}" class="w-full sm:w-1/2 flex justify-center py-3 px-4 border border-white/10 rounded-xl text-sm font-medium text-gray-300 bg-white/5 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 focus:ring-gray-500 transition-all duration-200">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

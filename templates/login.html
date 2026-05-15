@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Team Task Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 glass-card p-8 rounded-2xl relative overflow-hidden">
+        <!-- Decorative blob -->
+        <div class="absolute -top-10 -right-10 w-40 h-40 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-brand-accent/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10 text-center">
+            <div class="mx-auto h-12 w-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 mb-6 shadow-lg">
+                <i data-lucide="log-in" class="w-6 h-6 text-brand-400"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-white tracking-tight">Welcome back</h2>
+            <p class="mt-2 text-sm text-gray-400">
+                Sign in to your account to continue
+            </p>
+        </div>
+        
+        <form class="mt-8 space-y-6 relative z-10" method="post">
+            <div class="space-y-4">
+                <div>
+                    <label for="identifier" class="block text-sm font-medium text-gray-300 mb-1">Username or Email</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="user" class="h-5 w-5 text-gray-500"></i>
+                        </div>
+                        <input id="identifier" name="identifier" type="text" required class="glow-input block w-full pl-10 pr-3 py-2.5 border border-white/10 rounded-lg text-white placeholder-gray-500 sm:text-sm" placeholder="Enter your username or email">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide="lock" class="h-5 w-5 text-gray-500"></i>
+                        </div>
+                        <input id="password" name="password" type="password" required class="glow-input block w-full pl-10 pr-3 py-2.5 border border-white/10 rounded-lg text-white placeholder-gray-500 sm:text-sm" placeholder="Enter your password">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" class="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-brand-600 hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 focus:ring-offset-dark-900 transition-all duration-200 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)]">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <i data-lucide="arrow-right" class="h-5 w-5 text-brand-400 group-hover:text-white transition-colors duration-200"></i>
+                    </span>
+                    Sign In
+                </button>
+            </div>
+            
+            <div class="text-center">
+                <p class="text-sm text-gray-400">
+                    Don't have an account? 
+                    <a href="{{ url_for('signup') }}" class="font-medium text-brand-400 hover:text-brand-300 transition-colors">Create one here</a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
