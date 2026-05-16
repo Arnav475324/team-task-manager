@@ -9,10 +9,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ==========================================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'team_task_manager.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL', f'sqlite:///{db_path}'
-)
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'team_task_manager.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
