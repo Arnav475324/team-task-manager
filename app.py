@@ -1,14 +1,31 @@
 import os
 from datetime import datetime, date
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_from_directory, make_response
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import timedelta
+from sqlalchemy import text
+from werkzeug.utils import secure_filename
+import csv
+import io
 
 # ==========================================
 # CONFIGURATION & INITIALIZATION
 # ==========================================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-secret-key')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# Enable secure cookies in production (when DATABASE_URL is set typically means Railway)
+if os.environ.get('DATABASE_URL'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+
+csrf = CSRFProtect(app)
+
 db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'team_task_manager.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -74,10 +91,39 @@ class Task(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
+    proof_file_path = db.Column(db.String(255), nullable=True)
+    completion_comments = db.Column(db.Text, nullable=True)
+    admin_feedback = db.Column(db.Text, nullable=True)
     assignees = db.relationship('TaskAssignee', backref='task', lazy=True, cascade='all, delete')
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    link = db.Column(db.String(255), nullable=True)
+
+class ActivityLog(db.Model):
+    __tablename__ = 'activity_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    action = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    project = db.relationship('Project', backref='activity_logs')
+    user = db.relationship('User', backref='activity_logs')
 
 with app.app_context():
     db.create_all()
+    try:
+        db.session.execute(text('ALTER TABLE tasks ADD COLUMN proof_file_path VARCHAR(255)'))
+        db.session.execute(text('ALTER TABLE tasks ADD COLUMN completion_comments TEXT'))
+        db.session.execute(text('ALTER TABLE tasks ADD COLUMN admin_feedback TEXT'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 # ==========================================
@@ -89,6 +135,28 @@ def current_user():
     if not user_id:
         return None
     return User.query.get(user_id)
+
+def log_activity(user_id, action, project_id=None):
+    log = ActivityLog(user_id=user_id, action=action, project_id=project_id)
+    db.session.add(log)
+    db.session.commit()
+
+def create_notification(user_id, message, link=None):
+    notif = Notification(user_id=user_id, message=message, link=link)
+    db.session.add(notif)
+    db.session.commit()
+
+@app.context_processor
+def inject_global_data():
+    user = current_user()
+    if user:
+        unread_notifications = Notification.query.filter_by(user_id=user.id, is_read=False).order_by(Notification.created_at.desc()).all()
+        if user.role == 'Admin':
+            all_projects = Project.query.order_by(Project.name).all()
+        else:
+            all_projects = Project.query.join(ProjectMember).filter(ProjectMember.user_id == user.id).order_by(Project.name).all()
+        return dict(unread_notifications=unread_notifications, global_projects=all_projects)
+    return dict(unread_notifications=[], global_projects=[])
 
 
 def login_required(view):
@@ -142,6 +210,15 @@ def page_not_found(e):
 def internal_server_error(e):
     return render_template('500.html'), 500
 
+@app.after_request
+def add_header(response):
+    # Prevent caching of pages to ensure sensitive data isn't visible via the back button after logout
+    if 'user_id' not in session:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+    return response
+
 # ==========================================
 # PUBLIC & AUTHENTICATION ROUTES
 # ==========================================
@@ -164,6 +241,9 @@ def signup():
         if not username or not email or not password:
             flash('All fields are required.', 'error')
             return redirect(url_for('signup'))
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            flash('Please enter a valid email address.', 'error')
+            return redirect(url_for('signup'))
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'error')
             return redirect(url_for('signup'))
@@ -176,8 +256,10 @@ def signup():
         )
         db.session.add(user)
         db.session.commit()
+        session.permanent = True
         session['user_id'] = user.id
-        flash('Account created successfully.', 'success')
+        log_activity(user.id, "User signed up")
+        flash('Welcome to TaskUS! 🎉', 'success')
         return redirect(url_for('dashboard'))
     return render_template('signup.html')
 
@@ -197,7 +279,9 @@ def login():
             admin_email = admin.email if admin else 'admin@example.com'
             flash(f'Your account is under review and cannot be accessed. Contact admin at {admin_email} to reopen it.', 'error')
             return redirect(url_for('login'))
+        session.permanent = True
         session['user_id'] = user.id
+        log_activity(user.id, "User logged in")
         flash('Welcome back!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('login.html')
@@ -223,7 +307,11 @@ def dashboard():
     # Get tasks assigned to the current user
     assigned_tasks = Task.query.join(TaskAssignee).filter(TaskAssignee.user_id == user.id).filter(Task.status != 'Done').order_by(Task.due_date.asc().nulls_last()).all()
     all_tasks = Task.query.filter(Task.status != 'Done').order_by(Task.due_date.asc().nulls_last()).all()
-    overdue = [task for task in all_tasks if format_overdue(task)]
+    if user.role == 'Admin':
+        overdue = [task for task in all_tasks if format_overdue(task)]
+    else:
+        # Members only see overdue tasks that are assigned to them
+        overdue = [task for task in assigned_tasks if format_overdue(task)]
     status_counts = {
         'To Do': Task.query.filter_by(status='To Do').count(),
         'In Progress': Task.query.filter_by(status='In Progress').count(),
@@ -231,7 +319,8 @@ def dashboard():
         'Help Needed': Task.query.filter_by(status='Help Needed').count(),
         'Done': Task.query.filter_by(status='Done').count(),
     }
-    return render_template('dashboard.html', user=user, projects=projects, assigned_tasks=assigned_tasks, overdue=overdue, status_counts=status_counts)
+    is_new_user = user.created_at.date() == date.today()
+    return render_template('dashboard.html', user=user, projects=projects, assigned_tasks=assigned_tasks, overdue=overdue, status_counts=status_counts, is_new_user=is_new_user)
 
 # ==========================================
 # PROJECT MANAGEMENT ROUTES
@@ -247,12 +336,16 @@ def create_project():
         if not name:
             flash('Project name is required.', 'error')
             return redirect(url_for('create_project'))
+        if Project.query.filter(Project.name.ilike(name)).first():
+            flash('A project with this name already exists.', 'error')
+            return redirect(url_for('create_project'))
         project = Project(name=name, description=description, owner_id=user.id)
         db.session.add(project)
         db.session.commit()
         member = ProjectMember(project_id=project.id, user_id=user.id)
         db.session.add(member)
         db.session.commit()
+        log_activity(user.id, f"Created project '{project.name}'", project.id)
         flash('Project created successfully.', 'success')
         return redirect(url_for('project_detail', project_id=project.id))
     return render_template('project_form.html')
@@ -289,6 +382,10 @@ def project_detail(project_id):
         return redirect(url_for('dashboard'))
     members = [member.user for member in project.members]
     tasks = Task.query.filter_by(project_id=project.id).order_by(Task.due_date.asc().nulls_last()).all()
+    # Members (non-admin, non-owner) should not see unassigned tasks
+    is_admin_or_owner = user.role == 'Admin' or project.owner_id == user.id
+    if not is_admin_or_owner:
+        tasks = [task for task in tasks if task.assignees]
     active_tasks = [task for task in tasks if task.status != 'Done']
     completed_tasks = [task for task in tasks if task.status == 'Done']
     return render_template('project_detail.html', project=project, members=members, tasks=active_tasks, completed_tasks=completed_tasks, user=user)
@@ -311,6 +408,8 @@ def add_team_member(project_id):
         return redirect(url_for('project_detail', project_id=project.id))
     db.session.add(ProjectMember(project_id=project.id, user_id=member.id))
     db.session.commit()
+    log_activity(user.id, f"Added member {member.username}", project.id)
+    create_notification(member.id, f"You were added to project '{project.name}'", url_for('project_detail', project_id=project.id))
     flash(f'{member.username} added to the team.', 'success')
     return redirect(url_for('project_detail', project_id=project.id))
 
@@ -331,6 +430,8 @@ def remove_team_member(project_id, user_id):
         return redirect(url_for('project_detail', project_id=project.id))
     db.session.delete(member)
     db.session.commit()
+    log_activity(user.id, f"Removed member {member.user.username}", project.id)
+    create_notification(member.user.id, f"You were removed from project '{project.name}'")
     flash('Team member removed successfully.', 'success')
     return redirect(url_for('project_detail', project_id=project.id))
 
@@ -373,12 +474,15 @@ def create_task(project_id):
                         return redirect(url_for('create_task', project_id=project.id))
                     assigned_users.append(assigned_user)
         due_date_obj = None
-        try:
-            if due_date:
-                due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
-        except ValueError:
-            flash('Invalid due date format.', 'error')
-            return redirect(url_for('create_task', project_id=project.id))
+        if due_date:
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y'):
+                try:
+                    due_date_obj = datetime.strptime(due_date, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                flash('Due date could not be parsed and was cleared. Please use the date picker.', 'warning')
         task = Task(
             title=title,
             description=description,
@@ -393,6 +497,9 @@ def create_task(project_id):
         for assigned_user in assigned_users:
             db.session.add(TaskAssignee(task_id=task.id, user_id=assigned_user.id))
         db.session.commit()
+        log_activity(user.id, f"Created task '{task.title}'", project.id)
+        for assigned_user in assigned_users:
+            create_notification(assigned_user.id, f"You were assigned a new task: '{task.title}'", url_for('project_detail', project_id=project.id))
         flash('Task created successfully.', 'success')
         return redirect(url_for('project_detail', project_id=project.id))
     members = [member.user for member in project.members]
@@ -432,12 +539,15 @@ def edit_task(task_id):
                         return redirect(url_for('edit_task', task_id=task.id))
                     assigned_users.append(assigned_user)
         due_date_obj = None
-        try:
-            if due_date:
-                due_date_obj = datetime.strptime(due_date, '%Y-%m-%d').date()
-        except ValueError:
-            flash('Invalid due date format.', 'error')
-            return redirect(url_for('edit_task', task_id=task.id))
+        if due_date:
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y'):
+                try:
+                    due_date_obj = datetime.strptime(due_date, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                flash('Due date could not be parsed and was cleared. Please use the date picker.', 'warning')
         task.title = title
         task.description = description
         task.status = status
@@ -453,6 +563,7 @@ def edit_task(task_id):
         for assigned_user in assigned_users:
             db.session.add(TaskAssignee(task_id=task.id, user_id=assigned_user.id))
         db.session.commit()
+        log_activity(user.id, f"Updated task '{task.title}'", task.project_id)
         flash('Task updated successfully.', 'success')
         return redirect(url_for('project_detail', project_id=task.project_id))
     members = [member.user for member in task.project.members]
@@ -486,6 +597,7 @@ def update_task(task_id):
         elif status != 'Done':
             task.completed_at = None
         db.session.commit()
+        log_activity(user.id, f"Updated status of task '{task.title}' to {status}", task.project_id)
         flash('Task status updated.', 'success')
         return redirect(url_for('project_detail', project_id=task.project_id))
     task.status = status
@@ -494,6 +606,7 @@ def update_task(task_id):
     elif status != 'Done':
         task.completed_at = None
     db.session.commit()
+    log_activity(user.id, f"Updated status of task '{task.title}' to {status}", task.project_id)
     flash('Task status updated.', 'success')
     return redirect(url_for('project_detail', project_id=task.project_id))
 
@@ -510,6 +623,7 @@ def delete_task(task_id):
     project_id = task.project_id
     db.session.delete(task)
     db.session.commit()
+    log_activity(user.id, f"Deleted task '{task.title}'", project_id)
     flash('Task deleted successfully.', 'success')
     return redirect(url_for('project_detail', project_id=project_id))
 
@@ -523,6 +637,7 @@ def admin_dashboard():
     users = User.query.all()
     projects = Project.query.all()
     tasks = Task.query.all()
+    recent_logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(10).all()
     user_count = len(users)
     project_count = len(projects)
     task_count = len(tasks)
@@ -530,6 +645,7 @@ def admin_dashboard():
     return render_template('admin_dashboard.html', 
                          users=users, 
                          projects=projects, 
+                         recent_logs=recent_logs,
                          user_count=user_count,
                          project_count=project_count,
                          task_count=task_count,
@@ -626,6 +742,7 @@ def admin_delete_project(project_id):
 # ==========================================
 
 @app.route('/api/projects', methods=['GET', 'POST'])
+@login_required
 def api_projects():
     if request.method == 'GET':
         projects = Project.query.all()
@@ -652,6 +769,7 @@ def api_projects():
     return jsonify({'id': project.id, 'name': project.name}), 201
 
 @app.route('/api/tasks', methods=['GET', 'POST'])
+@login_required
 def api_tasks():
     if request.method == 'GET':
         tasks = Task.query.all()
@@ -700,6 +818,7 @@ def api_tasks():
     return jsonify({'id': task.id, 'title': task.title}), 201
 
 @app.route('/api/tasks/<int:task_id>', methods=['PATCH'])
+@login_required
 def api_update_task(task_id):
     task = Task.query.get_or_404(task_id)
     data = request.get_json(force=True)
@@ -723,6 +842,7 @@ def api_update_task(task_id):
     return jsonify({'success': True, 'task': {'id': task.id, 'status': task.status, 'assigned_to': assignees}})
 
 @app.route('/api/team/<int:project_id>', methods=['GET', 'POST'])
+@login_required
 def api_team(project_id):
     project = Project.query.get_or_404(project_id)
     if request.method == 'GET':
@@ -741,6 +861,7 @@ def api_team(project_id):
     return jsonify({'success': True, 'username': username}), 201
 
 @app.route('/api/project/<int:project_id>/search-members', methods=['GET'])
+@login_required
 def search_members(project_id):
     project = Project.query.get_or_404(project_id)
     query = request.args.get('q', '').strip()
@@ -761,6 +882,118 @@ def search_members(project_id):
 @app.context_processor
 def utility_processor():
     return {'current_user': current_user, 'format_overdue': format_overdue}
+
+# ==========================================
+# ADVANCED WORKFLOW & NEW FEATURES
+# ==========================================
+
+@app.route('/api/users/search')
+@login_required
+def api_users_search():
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify([])
+    users = User.query.filter(User.username.ilike(f'%{query}%')).limit(10).all()
+    return jsonify([{'id': u.id, 'username': u.username} for u in users])
+
+@app.route('/notifications/read/<int:notif_id>', methods=['POST'])
+@login_required
+def read_notification(notif_id):
+    notif = Notification.query.get_or_404(notif_id)
+    if notif.user_id != current_user().id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    notif.is_read = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/tasks/<int:task_id>/submit', methods=['POST'])
+@login_required
+def submit_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    user = current_user()
+    is_assigned = TaskAssignee.query.filter_by(task_id=task.id, user_id=user.id).first() is not None
+    if not is_assigned and user.role != 'Admin' and task.project.owner_id != user.id:
+        flash('Only assignees can submit a task for review.', 'error')
+        return redirect(url_for('project_detail', project_id=task.project_id))
+    
+    comments = request.form.get('completion_comments', '').strip()
+    task.completion_comments = comments
+    
+    # Handle file upload
+    if 'proof_file' in request.files:
+        file = request.files['proof_file']
+        if file.filename != '':
+            filename = secure_filename(f"{task.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            task.proof_file_path = filename
+
+    task.status = 'Review'
+    db.session.commit()
+    log_activity(user.id, f"Submitted task '{task.title}' for review", task.project_id)
+    create_notification(task.project.owner_id, f"Task '{task.title}' is ready for review.", url_for('project_detail', project_id=task.project_id))
+    flash('Task submitted for review!', 'success')
+    return redirect(url_for('project_detail', project_id=task.project_id))
+
+@app.route('/tasks/<int:task_id>/approve', methods=['POST'])
+@login_required
+def approve_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    user = current_user()
+    if task.project.owner_id != user.id and user.role != 'Admin':
+        flash('Only the Project Lead or Admin can approve tasks.', 'error')
+        return redirect(url_for('project_detail', project_id=task.project_id))
+    
+    task.status = 'Done'
+    task.completed_at = datetime.utcnow()
+    db.session.commit()
+    log_activity(user.id, f"Approved task '{task.title}'", task.project_id)
+    for assignee in task.assignees:
+        create_notification(assignee.user_id, f"Your task '{task.title}' was approved!", url_for('project_detail', project_id=task.project_id))
+    flash('Task approved and marked as completed.', 'success')
+    return redirect(url_for('project_detail', project_id=task.project_id))
+
+@app.route('/tasks/<int:task_id>/reject', methods=['POST'])
+@login_required
+def reject_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    user = current_user()
+    if task.project.owner_id != user.id and user.role != 'Admin':
+        flash('Only the Project Lead or Admin can reject tasks.', 'error')
+        return redirect(url_for('project_detail', project_id=task.project_id))
+    
+    feedback = request.form.get('admin_feedback', '').strip()
+    if not feedback:
+        flash('Feedback is required when rejecting a task.', 'error')
+        return redirect(url_for('project_detail', project_id=task.project_id))
+        
+    task.admin_feedback = feedback
+    task.status = 'In Progress'
+    db.session.commit()
+    log_activity(user.id, f"Rejected task '{task.title}'", task.project_id)
+    for assignee in task.assignees:
+        create_notification(assignee.user_id, f"Your task '{task.title}' was rejected. Feedback provided.", url_for('project_detail', project_id=task.project_id))
+    flash('Task rejected and sent back to In Progress.', 'warning')
+    return redirect(url_for('project_detail', project_id=task.project_id))
+
+@app.route('/admin/export/logs', methods=['GET'])
+@admin_required
+def export_logs():
+    logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['ID', 'Timestamp', 'User', 'Action', 'Project ID'])
+    for log in logs:
+        cw.writerow([
+            log.id, 
+            log.created_at.strftime('%Y-%m-%d %H:%M:%S'), 
+            log.user.username if log.user else 'System', 
+            log.action, 
+            log.project_id or ''
+        ])
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=audit_logs.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

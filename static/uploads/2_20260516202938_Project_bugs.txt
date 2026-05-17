@@ -1,0 +1,20 @@
+Please fix all this bugs without changing the existing without changing the existing UI and code logic :
+
+No Delete option to remove the tasker from the project.
+No edit option to modify the task details like date.
+No edit option to modify the description of the project.
+Error removing the member.
+Non-admin member should not be able to edit the assigned task and should only have the option to mark as done or help needed.
+Every task should have an automatically generated task id.
+Separate section for the Completed tasks.
+New Project can only be created by an admin.
+No project should be visible to new member until assigned by the admin.
+Add an option to add members to an existing task.
+Do not show team members until section opened 
+
+AFTER UPDATE 1 -
+ADD OPTION TO ASSIGN (MULTIPLE) MEMBERS TO A TASK.
+USERNAMES SHOULD BE RECOMMENDED WHEN SEARCHING A MEMBER and DO NOT SHOW TEAM MEMBERS NAMES UNTILL SEARCHED.
+Members should not have access to add or remove a task.
+Admins should have access to suspend members account and when they try to login, the screen must say that your account is under review and can only be re opened by admin. Contact admin (Admin's email).
+Completed tasks must not be shown in a big section in a table which shows task id, task name, assigned to, assigned on, task status, expected completion date, completion date

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Team Task Manager{% endblock %}</title>
+    <title>{% block title %}TaskUS{% endblock %}</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,7 +69,7 @@
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-accent flex items-center justify-center shadow-lg shadow-brand-500/20 group-hover:shadow-brand-500/40 transition-all duration-300">
                             <i data-lucide="layers" class="w-5 h-5 text-white"></i>
                         </div>
-                        <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">TaskFlow</span>
+                        <span class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 tracking-tight">TaskUS</span>
                     </a>
                 </div>
                 
@@ -77,19 +77,87 @@
                 <nav class="hidden md:block">
                     <div class="ml-10 flex items-center space-x-1">
                         {% if current_user() %}
+                            <button onclick="openSearchModal()" class="px-3 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-brand-500/10 transition-all duration-200 flex items-center gap-2">
+                                <i data-lucide="search" class="w-4 h-4"></i> Search <span class="ml-1 text-[10px] font-mono border border-white/20 rounded px-1.5 py-0.5 text-gray-500">Ctrl+K</span>
+                            </button>
+                            
                             <a href="{{ url_for('dashboard') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center gap-2">
                                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
                             </a>
+                            
+                            <!-- Projects Dropdown -->
+                            <div class="relative group">
+                                <button class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center gap-1">
+                                    <i data-lucide="folder" class="w-4 h-4"></i> Projects <i data-lucide="chevron-down" class="w-3 h-3 transition-transform group-hover:rotate-180"></i>
+                                </button>
+                                <div class="absolute left-0 mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 bg-dark-800/95 border border-white/10 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-xl z-50 overflow-hidden">
+                                    <div class="max-h-64 overflow-y-auto py-2">
+                                        {% for p in global_projects %}
+                                        <a href="{{ url_for('project_detail', project_id=p.id) }}" class="block px-4 py-2 text-sm text-gray-300 hover:bg-brand-500/10 hover:text-brand-400 transition-colors">
+                                            <div class="truncate">{{ p.name }}</div>
+                                        </a>
+                                        {% else %}
+                                        <div class="px-4 py-2 text-sm text-gray-500">No active projects</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% if current_user().role == 'Admin' %}
+                                    <div class="border-t border-white/10 p-2 bg-dark-900/50">
+                                        <a href="{{ url_for('create_project') }}" class="flex items-center gap-2 px-2 py-1.5 text-sm text-brand-400 hover:text-brand-300 hover:bg-brand-500/10 rounded-md transition-colors">
+                                            <i data-lucide="plus" class="w-4 h-4"></i> New Project
+                                        </a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
                             {% if current_user().role == 'Admin' %}
-                                <a href="{{ url_for('create_project') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center gap-2">
-                                    <i data-lucide="folder-plus" class="w-4 h-4"></i> New Project
-                                </a>
                                 <a href="{{ url_for('admin_dashboard') }}" class="px-3 py-2 rounded-md text-sm font-medium text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 transition-all duration-200 flex items-center gap-2">
                                     <i data-lucide="settings" class="w-4 h-4"></i> Admin
                                 </a>
                             {% endif %}
+                            
                             <div class="w-px h-5 bg-white/10 mx-2"></div>
-                            <a href="{{ url_for('logout') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 flex items-center gap-2">
+                            
+                            <!-- Notifications Dropdown -->
+                            <div class="relative group">
+                                <button class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 flex items-center relative">
+                                    <i data-lucide="bell" class="w-4 h-4"></i>
+                                    {% if unread_notifications %}
+                                    <span class="absolute top-1.5 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
+                                    {% endif %}
+                                </button>
+                                <div class="absolute right-0 mt-2 w-80 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 bg-dark-800/95 border border-white/10 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] backdrop-blur-xl z-50 overflow-hidden">
+                                    <div class="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-dark-900/50">
+                                        <span class="text-sm font-bold text-white">Notifications</span>
+                                        <span class="text-[10px] uppercase tracking-wider font-bold bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full">{{ unread_notifications|length }} new</span>
+                                    </div>
+                                    <div class="max-h-80 overflow-y-auto">
+                                        {% for n in unread_notifications %}
+                                        <div class="p-3 border-b border-white/5 hover:bg-white/5 transition-colors group/notif flex gap-3 items-start" id="notif-{{ n.id }}">
+                                            <div class="w-8 h-8 rounded-full bg-brand-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 border border-brand-500/20">
+                                                <i data-lucide="bell" class="w-4 h-4 text-brand-400"></i>
+                                            </div>
+                                            <div class="flex-grow">
+                                                <a {% if n.link %}href="{{ n.link }}"{% endif %} class="text-sm text-gray-200 block mb-1 hover:text-brand-400 transition-colors">
+                                                    {{ n.message }}
+                                                </a>
+                                                <div class="flex justify-between items-center mt-1">
+                                                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">{{ n.created_at.strftime('%b %d, %H:%M') }}</span>
+                                                    <button onclick="markRead({{ n.id }})" class="text-[10px] font-medium text-brand-500 hover:text-brand-400 opacity-0 group-hover/notif:opacity-100 transition-opacity uppercase tracking-wider">Mark read</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <div class="p-6 text-center text-sm text-gray-500 flex flex-col items-center gap-2">
+                                            <i data-lucide="check-circle-2" class="w-8 h-8 text-gray-600"></i>
+                                            <p>You're all caught up!</p>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <a href="{{ url_for('logout') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 flex items-center gap-2 ml-1">
                                 <i data-lucide="log-out" class="w-4 h-4"></i> Logout
                             </a>
                         {% else %}
@@ -130,14 +198,30 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Global Search Modal -->
+    <div id="search-modal" class="fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-[150] flex flex-col items-center pt-24 px-4 opacity-0 invisible transition-all duration-200">
+        <div class="bg-dark-800 border border-white/10 rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden transform scale-95 transition-transform duration-200" id="search-modal-content">
+            <div class="flex items-center px-4 py-3 border-b border-white/10 bg-dark-900/50">
+                <i data-lucide="search" class="w-5 h-5 text-gray-400 mr-3"></i>
+                <input type="text" id="global-search-input" placeholder="Search projects or tasks..." class="flex-grow bg-transparent text-white text-lg focus:outline-none placeholder-gray-500" autocomplete="off">
+                <button onclick="closeSearchModal()" class="text-gray-500 hover:text-white px-2 py-1 rounded-md text-xs font-mono border border-white/10 bg-white/5">ESC</button>
+            </div>
+            <div class="max-h-96 overflow-y-auto p-2" id="search-results">
+                <div class="p-4 text-center text-sm text-gray-500">
+                    Type to instantly search across all your projects.
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="border-t border-white/5 py-8 mt-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center gap-4">
             <div class="flex items-center gap-2 opacity-50">
                 <i data-lucide="layers" class="w-4 h-4"></i>
-                <span class="font-medium tracking-tight">TaskFlow</span>
+                <span class="font-medium tracking-tight">TaskUS</span>
             </div>
-            <p class="text-xs text-gray-500">© 2026 Team Task Manager. All rights reserved.</p>
+            <p class="text-xs text-gray-500">© 2026 TaskUS. All rights reserved.</p>
         </div>
     </footer>
 
@@ -154,6 +238,142 @@
                     setTimeout(() => toast.remove(), 500); // Wait for transition
                 }, 5000);
             });
+        });
+
+        // Multi-Tab Session Sync
+        const currentUserId = "{{ current_user().id if current_user() else '' }}";
+        
+        // Update localStorage with current session state
+        localStorage.setItem('taskus_user_id', currentUserId);
+        
+        // Listen for changes from other tabs
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'taskus_user_id') {
+                if (e.newValue !== currentUserId) {
+                    // Create an overlay to block interaction and force refresh
+                    const overlay = document.createElement('div');
+                    overlay.className = 'fixed inset-0 bg-dark-900/90 backdrop-blur-sm z-[200] flex flex-col items-center justify-center p-4 text-center animate-fade-in';
+                    overlay.innerHTML = `
+                        <div class="bg-dark-800 border border-white/10 p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                            <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i data-lucide="refresh-cw" class="w-6 h-6 animate-spin"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-white mb-2">Session Changed</h2>
+                            <p class="text-sm text-gray-400 mb-6">Your account session was changed in another tab. Refreshing to sync...</p>
+                            <button onclick="window.location.reload()" class="w-full py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-medium transition-colors">
+                                Refresh Now
+                            </button>
+                        </div>
+                    `;
+                    document.body.appendChild(overlay);
+                    lucide.createIcons();
+                    
+                    // Auto refresh after 3 seconds
+                    setTimeout(() => window.location.reload(), 3000);
+                }
+            }
+        });
+
+        // Global Search & Notifications Logic
+        const searchModal = document.getElementById('search-modal');
+        const searchInput = document.getElementById('global-search-input');
+        const searchModalContent = document.getElementById('search-modal-content');
+
+        function openSearchModal() {
+            searchModal.classList.remove('opacity-0', 'invisible');
+            searchModalContent.classList.remove('scale-95');
+            setTimeout(() => searchInput.focus(), 100);
+        }
+
+        function closeSearchModal() {
+            searchModal.classList.add('opacity-0', 'invisible');
+            searchModalContent.classList.add('scale-95');
+            searchInput.value = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                openSearchModal();
+            }
+            if (e.key === 'Escape') {
+                closeSearchModal();
+            }
+        });
+
+        async function markRead(notifId) {
+            const formData = new FormData();
+            formData.append('csrf_token', "{{ csrf_token() }}");
+            try {
+                const res = await fetch(`/notifications/read/${notifId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    const el = document.getElementById(`notif-${notifId}`);
+                    if (el) {
+                        el.style.opacity = '0';
+                        setTimeout(() => el.remove(), 300);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Global Search Logic
+        let searchTimer;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            const q = searchInput.value.trim();
+            const resultsDiv = document.getElementById('search-results');
+            if (!q) {
+                resultsDiv.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">Type to instantly search across all your projects.</div>';
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="p-4 text-center text-sm text-gray-500 animate-pulse">Searching...</div>';
+            searchTimer = setTimeout(async () => {
+                try {
+                    const [tasksRes, projectsRes] = await Promise.all([
+                        fetch('/api/tasks'),
+                        fetch('/api/projects')
+                    ]);
+                    const tasks = await tasksRes.json();
+                    const projects = await projectsRes.json();
+                    const qLower = q.toLowerCase();
+                    const matchedProjects = projects.filter(p => p.name.toLowerCase().includes(qLower));
+                    const matchedTasks = tasks.filter(t => t.title.toLowerCase().includes(qLower));
+                    if (!matchedProjects.length && !matchedTasks.length) {
+                        resultsDiv.innerHTML = '<div class="p-4 text-center text-sm text-gray-500">No results found.</div>';
+                        return;
+                    }
+                    let html = '';
+                    if (matchedProjects.length) {
+                        html += `<div class="px-3 py-2 text-[10px] uppercase tracking-wider font-bold text-gray-500">Projects</div>`;
+                        matchedProjects.slice(0, 4).forEach(p => {
+                            html += `<a href="/projects/${p.id}" class="flex items-center gap-3 px-3 py-2.5 hover:bg-brand-500/10 rounded-lg mx-1 my-0.5 transition-colors group" onclick="closeSearchModal()">
+                                <div class="w-7 h-7 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></div>
+                                <span class="text-sm text-gray-200 group-hover:text-brand-300 font-medium truncate">${p.name}</span>
+                            </a>`;
+                        });
+                    }
+                    if (matchedTasks.length) {
+                        html += `<div class="px-3 py-2 text-[10px] uppercase tracking-wider font-bold text-gray-500 mt-1 border-t border-white/5">Tasks</div>`;
+                        matchedTasks.slice(0, 5).forEach(t => {
+                            html += `<div class="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg mx-1 my-0.5 transition-colors">
+                                <div class="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></div>
+                                <div class="flex-1 min-w-0">
+                                    <span class="text-sm text-gray-200 font-medium truncate block">${t.title}</span>
+                                    <span class="text-[10px] text-gray-500">${t.project} &bull; ${t.status}</span>
+                                </div>
+                            </div>`;
+                        });
+                    }
+                    resultsDiv.innerHTML = html;
+                } catch (e) {
+                    resultsDiv.innerHTML = '<div class="p-4 text-center text-sm text-red-400">Search failed. Please try again.</div>';
+                }
+            }, 250);
         });
     </script>
 </body>

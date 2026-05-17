@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ 'Edit Task' if edit else 'Add Task' }} - Team Task Manager{% endblock %}
+{% block title %}{{ 'Edit Task' if edit else 'Add Task' }} - TaskUS{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto py-8">
@@ -21,6 +21,7 @@
         <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
         
         <form method="post" action="{{ url_for('edit_task', task_id=task.id) if edit else url_for('create_task', project_id=project.id) }}" id="task-form" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="space-y-2">
                 <label for="title" class="block text-sm font-medium text-gray-300">
                     Task Title <span class="text-red-500">*</span>

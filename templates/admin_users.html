@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Manage Users - Team Task Manager{% endblock %}
+{% block title %}Manage Users - TaskUS{% endblock %}
 
 {% block content %}
 <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -62,6 +62,7 @@
                             <td class="py-4 px-6">
                                 <div class="flex items-center justify-end gap-3 flex-wrap">
                                     <form method="POST" action="{{ url_for('update_user_role', user_id=user.id) }}" class="flex items-center gap-2 m-0">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <select name="role" class="glow-input text-xs py-1.5 pl-2 pr-6 rounded-md border border-white/10 bg-dark-800 text-white cursor-pointer focus:ring-1 focus:ring-brand-500">
                                             <option value="Member" {% if user.role == 'Member' %}selected{% endif %}>Member</option>
                                             <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Admin</option>
@@ -75,12 +76,14 @@
                                         <div class="h-6 w-px bg-white/10 mx-1"></div>
                                         {% if user.is_suspended %}
                                             <form method="POST" action="{{ url_for('unsuspend_user', user_id=user.id) }}" class="m-0">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-md text-xs font-medium transition-colors">
                                                     <i data-lucide="unlock" class="w-3 h-3 mr-1"></i> Reactivate
                                                 </button>
                                             </form>
                                         {% else %}
                                             <form method="POST" action="{{ url_for('suspend_user', user_id=user.id) }}" class="m-0" onsubmit="return confirm('Suspend this user account?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-md text-xs font-medium transition-colors">
                                                     <i data-lucide="lock" class="w-3 h-3 mr-1"></i> Suspend
                                                 </button>
@@ -88,6 +91,7 @@
                                         {% endif %}
                                         
                                         <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="m-0" onsubmit="return confirm('Are you sure you want to permanently delete this user?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-md text-xs font-medium transition-colors">
                                                 <i data-lucide="trash-2" class="w-3 h-3 mr-1"></i> Delete
                                             </button>

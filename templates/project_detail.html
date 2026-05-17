@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ project.name }} - Team Task Manager{% endblock %}
+{% block title %}{{ project.name }} - TaskUS{% endblock %}
 
 {% block content %}
 <div class="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -19,7 +19,7 @@
         
         <div class="flex items-center gap-6 mt-6">
             <div class="flex items-center gap-2">
-                <span class="text-sm text-gray-500">Owner:</span>
+                <span class="text-sm text-gray-500">Lead:</span>
                 <div class="flex items-center gap-2">
                     <div class="w-6 h-6 rounded-full bg-dark-700 flex items-center justify-center text-xs text-white font-bold border border-white/10">{{ project.owner.username[0] | upper }}</div>
                     <span class="text-sm font-medium text-gray-200">{{ project.owner.username }}</span>
@@ -90,7 +90,7 @@
                                     {% if task.due_date %}
                                         <span class="px-2.5 py-1 rounded-md text-xs font-medium border {{ 'bg-red-500/20 text-red-400 border-red-500/30' if format_overdue(task) else 'bg-white/5 text-gray-400 border-white/10' }} flex items-center gap-1">
                                             <i data-lucide="calendar" class="w-3 h-3"></i>
-                                            {{ task.due_date }}
+                                            {{ task.due_date.strftime('%b %d, %Y') }}
                                         </span>
                                     {% endif %}
                                 </div>
@@ -113,24 +113,43 @@
                                     </div>
                                     
                                     <div class="flex items-center gap-2">
-                                        {% set can_update = task.created_by_id == current_user().id or (task.assignees and task.assignees|selectattr('user_id', 'equalto', current_user().id)|first) or project.owner_id == current_user().id or current_user().role == 'Admin' %}
+                                        {% set is_assigned = task.assignees and task.assignees|selectattr('user_id', 'equalto', current_user().id)|list|length > 0 %}
                                         {% set can_full_edit = task.created_by_id == current_user().id or project.owner_id == current_user().id or current_user().role == 'Admin' %}
                                         {% set can_delete = project.owner_id == current_user().id or current_user().role == 'Admin' %}
                                         
-                                        {% if can_update %}
+                                        {% if task.admin_feedback %}
+                                            <button onclick="showFeedback(this)" data-feedback={{ task.admin_feedback|tojson }} class="p-1 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition-colors" title="View Feedback">
+                                                <i data-lucide="message-square" class="w-4 h-4"></i>
+                                            </button>
+                                        {% endif %}
+
+                                        {% if task.status == 'Review' and can_full_edit %}
+                                            <button onclick="openReviewModal(this)"
+                                                data-task-id="{{ task.id }}"
+                                                data-title={{ task.title|tojson }}
+                                                data-comments={{ (task.completion_comments or '')|tojson }}
+                                                data-proof="{{ task.proof_file_path or '' }}"
+                                                class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] uppercase tracking-wider font-bold rounded transition-colors shadow-lg shadow-indigo-500/20">
+                                                Review
+                                            </button>
+                                        {% elif is_assigned and task.status not in ['Review', 'Done'] %}
+                                            <button onclick="openSubmitModal(this)"
+                                                data-task-id="{{ task.id }}"
+                                                data-title={{ task.title|tojson }}
+                                                class="px-2 py-1 bg-brand-600 hover:bg-brand-500 text-white text-[10px] uppercase tracking-wider font-bold rounded transition-colors shadow-lg shadow-brand-500/20">
+                                                Submit
+                                            </button>
+                                        {% endif %}
+                                        
+                                        {% if can_full_edit %}
                                             <form method="post" action="{{ url_for('update_task', task_id=task.id) }}" class="flex items-center gap-1 m-0">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <select name="status" class="bg-dark-900 text-xs text-gray-300 border border-white/10 rounded px-2 py-1 focus:ring-1 focus:ring-brand-500 outline-none w-28">
-                                                    {% if can_full_edit %}
-                                                        {% for choice in ['To Do', 'In Progress', 'Review', 'Help Needed', 'Done'] %}
-                                                            <option value="{{ choice }}" {% if task.status == choice %}selected{% endif %}>{{ choice }}</option>
-                                                        {% endfor %}
-                                                    {% else %}
-                                                        {% for choice in ['Help Needed', 'Done'] %}
-                                                            <option value="{{ choice }}" {% if task.status == choice %}selected{% endif %}>{{ choice }}</option>
-                                                        {% endfor %}
-                                                    {% endif %}
+                                                    {% for choice in ['To Do', 'In Progress', 'Review', 'Help Needed', 'Done'] %}
+                                                        <option value="{{ choice }}" {% if task.status == choice %}selected{% endif %}>{{ choice }}</option>
+                                                    {% endfor %}
                                                 </select>
-                                                <button type="submit" class="p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded transition-colors" title="Update Status">
+                                                <button type="submit" class="p-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded transition-colors" title="Force Update Status">
                                                     <i data-lucide="check" class="w-4 h-4"></i>
                                                 </button>
                                             </form>
@@ -144,6 +163,7 @@
                                         
                                         {% if can_delete %}
                                             <form method="post" action="{{ url_for('delete_task', task_id=task.id) }}" class="m-0" onsubmit="return confirm('Are you sure you want to delete this task?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <button type="submit" class="p-1 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete Task">
                                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                                 </button>
@@ -248,6 +268,7 @@
                             
                             {% if (current_user().id == project.owner_id or current_user().role == 'Admin') and member.id != project.owner_id %}
                                 <form method="post" action="{{ url_for('remove_team_member', project_id=project.id, user_id=member.id) }}" class="m-0" onsubmit="return confirm('Remove {{ member.username }} from the project?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100" title="Remove Member">
                                         <i data-lucide="user-minus" class="w-4 h-4"></i>
                                     </button>
@@ -255,7 +276,7 @@
                             {% endif %}
                             
                             {% if member.id == project.owner_id %}
-                                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-500/20 text-brand-400 border border-brand-500/30">Owner</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-brand-500/20 text-brand-400 border border-brand-500/30">Lead</span>
                             {% endif %}
                         </div>
                     {% endfor %}
@@ -264,15 +285,17 @@
                 {% if current_user().id == project.owner_id or current_user().role == 'Admin' %}
                     <div class="pt-4 border-t border-white/5">
                         <form method="post" action="{{ url_for('add_team_member', project_id=project.id) }}" class="flex flex-col gap-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <label for="username" class="text-xs font-medium text-gray-400">Add new member</label>
-                            <div class="flex gap-2">
+                            <div class="flex gap-2 relative">
                                 <div class="relative flex-grow">
                                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
                                         <i data-lucide="search" class="w-4 h-4 text-gray-500"></i>
                                     </div>
-                                    <input type="text" name="username" id="username" placeholder="Username..." required class="glow-input block w-full pl-8 pr-3 py-2 rounded-lg border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all text-sm">
+                                    <input type="text" name="username" id="username" placeholder="Username..." required autocomplete="off" onkeyup="searchUsers(this.value)" class="glow-input block w-full pl-8 pr-3 py-2 rounded-lg border border-white/10 bg-dark-900 text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-all text-sm">
+                                    <div id="autocomplete-results" class="absolute left-0 right-0 mt-1 bg-dark-800 border border-white/10 rounded-lg shadow-xl z-[100] overflow-hidden hidden max-h-40 overflow-y-auto"></div>
                                 </div>
-                                <button type="submit" class="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-950 focus:ring-indigo-500 transition-colors">
+                                <button type="submit" class="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-600 hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors">
                                     Add
                                 </button>
                             </div>
@@ -281,6 +304,76 @@
                 {% endif %}
             </div>
         </section>
+    </div>
+</div>
+
+<!-- Submit Task Modal -->
+<div id="submit-modal" class="fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center px-4 opacity-0 invisible transition-all duration-200">
+    <div class="bg-dark-800 border border-white/10 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden transform scale-95 transition-transform duration-200" id="submit-modal-content">
+        <form id="submit-form" method="post" enctype="multipart/form-data" class="m-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-dark-900/50">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2"><i data-lucide="check-square" class="w-5 h-5 text-brand-400"></i> Submit Task for Review</h3>
+                <button type="button" onclick="closeModals()" class="text-gray-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-400" id="submit-task-title"></p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Upload Proof/File (Optional)</label>
+                    <input type="file" name="proof_file" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-500/20 file:text-brand-400 hover:file:bg-brand-500/30 transition-colors cursor-pointer border border-white/10 rounded-lg bg-dark-900 p-1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Completion Comments / Description</label>
+                    <textarea name="completion_comments" rows="3" class="w-full bg-dark-900 border border-white/10 rounded-lg p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500" placeholder="Describe what you did..."></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-dark-900/50 border-t border-white/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModals()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-medium transition-colors">Submit Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Review Task Modal -->
+<div id="review-modal" class="fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center px-4 opacity-0 invisible transition-all duration-200">
+    <div class="bg-dark-800 border border-white/10 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden transform scale-95 transition-transform duration-200" id="review-modal-content">
+        <div class="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-dark-900/50">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2"><i data-lucide="eye" class="w-5 h-5 text-indigo-400"></i> Review Task</h3>
+            <button type="button" onclick="closeModals()" class="text-gray-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <h4 class="text-md font-medium text-white" id="review-task-title"></h4>
+            
+            <div class="bg-white/5 p-4 rounded-lg border border-white/5">
+                <h5 class="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Member Comments</h5>
+                <p class="text-sm text-gray-300" id="review-task-comments">No comments provided.</p>
+            </div>
+            
+            <div id="review-task-proof-container" class="hidden bg-white/5 p-4 rounded-lg border border-white/5 items-center justify-between">
+                <div>
+                    <h5 class="text-xs uppercase tracking-wider text-gray-500 font-bold mb-1">Proof File</h5>
+                    <p class="text-sm text-gray-300 flex items-center gap-2"><i data-lucide="paperclip" class="w-4 h-4"></i> Attached</p>
+                </div>
+                <a id="review-task-proof-link" href="#" target="_blank" class="px-3 py-1.5 bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 text-xs font-medium rounded transition-colors">Download</a>
+            </div>
+
+            <form id="reject-form" method="post" class="mt-4 pt-4 border-t border-white/10">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <label class="block text-sm font-medium text-amber-400 mb-1">Rejection Feedback (Required if rejecting)</label>
+                <textarea name="admin_feedback" id="reject-feedback" rows="2" class="w-full bg-dark-900 border border-white/10 rounded-lg p-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500" placeholder="Why is this being rejected?"></textarea>
+            </form>
+        </div>
+        <div class="px-6 py-4 bg-dark-900/50 border-t border-white/10 flex justify-between gap-3">
+            <button type="button" onclick="submitReject()" class="px-4 py-2 bg-dark-900 border border-amber-500/50 text-amber-500 hover:bg-amber-500/10 rounded-lg text-sm font-medium transition-colors">Reject & Reopen</button>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeModals()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                <form id="approve-form" method="post" class="m-0 inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-500/20">Approve Task</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -297,7 +390,7 @@
                     const desc = task.getAttribute('data-description') || '';
                     
                     if (title.includes(query) || desc.includes(query)) {
-                        task.style.display = 'flex'; // Use flex to maintain the card's internal layout
+                        task.style.display = ''; // Reset to CSS default (grid child)
                     } else {
                         task.style.display = 'none';
                     }
@@ -305,5 +398,95 @@
             });
         }
     });
+
+    // Autocomplete Logic
+    let searchTimeout;
+    async function searchUsers(query) {
+        clearTimeout(searchTimeout);
+        const resultsDiv = document.getElementById('autocomplete-results');
+        if (query.length < 2) {
+            resultsDiv.classList.add('hidden');
+            return;
+        }
+        searchTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                resultsDiv.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'px-4 py-2 text-sm text-gray-300 hover:bg-brand-500/20 hover:text-brand-400 cursor-pointer transition-colors';
+                        div.innerText = user.username;
+                        div.onclick = () => {
+                            document.getElementById('username').value = user.username;
+                            resultsDiv.classList.add('hidden');
+                        };
+                        resultsDiv.appendChild(div);
+                    });
+                    resultsDiv.classList.remove('hidden');
+                } else {
+                    resultsDiv.classList.add('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }, 300);
+    }
+
+    // Modal Logic
+    function showFeedback(btn) {
+        const feedback = btn.getAttribute('data-feedback');
+        alert('Feedback from Review:\n' + feedback);
+    }
+
+    function openSubmitModal(btn) {
+        const taskId = btn.getAttribute('data-task-id');
+        const title = btn.getAttribute('data-title');
+        document.getElementById('submit-form').action = `/tasks/${taskId}/submit`;
+        document.getElementById('submit-task-title').innerText = title;
+        document.getElementById('submit-modal').classList.remove('opacity-0', 'invisible');
+        document.getElementById('submit-modal-content').classList.remove('scale-95');
+    }
+
+    function openReviewModal(btn) {
+        const taskId = btn.getAttribute('data-task-id');
+        const title = btn.getAttribute('data-title');
+        const comments = btn.getAttribute('data-comments');
+        const proofFile = btn.getAttribute('data-proof');
+        document.getElementById('approve-form').action = `/tasks/${taskId}/approve`;
+        document.getElementById('reject-form').action = `/tasks/${taskId}/reject`;
+        document.getElementById('review-task-title').innerText = title;
+        document.getElementById('review-task-comments').innerText = comments || 'No comments provided.';
+        
+        if (proofFile) {
+            const proofContainer = document.getElementById('review-task-proof-container');
+            proofContainer.style.display = 'flex';
+            proofContainer.classList.remove('hidden');
+            document.getElementById('review-task-proof-link').href = `/static/uploads/${proofFile}`;
+        } else {
+            const proofContainer = document.getElementById('review-task-proof-container');
+            proofContainer.style.display = 'none';
+            proofContainer.classList.add('hidden');
+        }
+
+        document.getElementById('review-modal').classList.remove('opacity-0', 'invisible');
+        document.getElementById('review-modal-content').classList.remove('scale-95');
+    }
+
+    function closeModals() {
+        document.getElementById('submit-modal').classList.add('opacity-0', 'invisible');
+        document.getElementById('submit-modal-content').classList.add('scale-95');
+        document.getElementById('review-modal').classList.add('opacity-0', 'invisible');
+        document.getElementById('review-modal-content').classList.add('scale-95');
+    }
+
+    function submitReject() {
+        if (!document.getElementById('reject-feedback').value.trim()) {
+            alert('Please provide feedback for the rejection.');
+            return;
+        }
+        document.getElementById('reject-form').submit();
+    }
 </script>
 {% endblock %}

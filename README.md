@@ -1,4 +1,4 @@
-# Team Task Manager
+# TaskUS
 
 A full-stack Flask web app for managing projects, tasks, and teams with role-based access control.
 

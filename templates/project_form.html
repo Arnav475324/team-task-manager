@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ 'Edit Project' if edit else 'Create Project' }} - Team Task Manager{% endblock %}
+{% block title %}{{ 'Edit Project' if edit else 'Create Project' }} - TaskUS{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto py-8">
@@ -21,6 +21,7 @@
         <div class="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
         
         <form method="post" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="space-y-2">
                 <label for="name" class="block text-sm font-medium text-gray-300">
                     Project Name <span class="text-red-500">*</span>
